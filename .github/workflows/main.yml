@@ -14,9 +14,7 @@ on:
   workflow_dispatch:
 
 
-# Schedule the workflow to run at 2:10 pm every Monday to Friday
-schedule:
-  - cron: "10 14 * * 1-5"   # Afternoon 2:10 pm, Monday to Friday
+
 
 
 # Set permissions for the workflow
