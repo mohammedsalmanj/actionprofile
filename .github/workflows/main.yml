@@ -1,44 +1,73 @@
 # Workflow name
-name: Build Job
+name: Vprofile CICD Workflow
 
-# Trigger the workflow on pushes to the main branch
+# Trigger the workflow on pushes to the main or develop branches
 on:
- # push:
-   # branches:
-     # - main
+  push:
+    branches: [ "main"]
 
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
+
+# Trigger the workflow on a schedule
+# Every Monday to Friday at 2:10 pm
+  workflow_dispatch:
+  schedule:
+    - cron: "10 14 * * 1-5"
+
+# Permissions
+permissions:
+  contents: read
+
+# Jobs
 jobs:
-  # Build job: compile and package the project
   Build:
     runs-on: ubuntu-latest
     steps:
+      # Checkout code
       - name: Code checkout
-        # Use the official checkout action to fetch repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
+      # Build the application
       - name: Maven Build
-        # Run Maven install to compile, run plugins, and build artifacts
         run: mvn install
 
-  # Testing job: runs after Build completes successfully
+      # Upload the build artifact (WAR)
+      - name: Upload Build Artifact (WAR)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vprofile-app
+          path: target/*.war
+
+      # Notify if the build fails
+      - name: Notify if Build Fails
+        if: failure()
+        run: echo " Build job failed! Please check logs."
+
+
   Testing:
     runs-on: ubuntu-latest
-    # Ensure tests run only after the Build job finishes
     needs: Build
     steps:
+      # Checkout code
       - name: Code checkout
-        # Checkout with full history (fetch-depth: 0) if tests rely on tags or commit history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # Run tests on the main branch
       - name: Run tests on main branch
-        # Execute Maven tests
+        if: github.ref == 'refs/heads/main'
         run: mvn test
 
+      # Run Checkstyle on the main branch
       - name: Checkstyle
-        # Generate and check code style reports using Checkstyle
+        if: github.ref == 'refs/heads/main'
         run: mvn checkstyle:checkstyle
+
+      # Skip unit tests and code analysis on other branches
+      - name: Run tests on other branches
+        if: github.ref != 'refs/heads/main'
+        run: echo "Skipping unit tests and code analysis"
