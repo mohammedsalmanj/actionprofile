@@ -14,6 +14,7 @@ permissions:
   contents: read
 
 jobs:
+  # --------------------- BUILD JOB ---------------------
   Build:
     runs-on: ubuntu-latest
     steps:
@@ -23,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Maven Build
-        run: mvn install -DskipTests
+        run: mvn clean install -DskipTests
 
       - name: Upload Build Artifact (WAR)
         uses: actions/upload-artifact@v4
@@ -33,8 +34,9 @@ jobs:
 
       - name: Notify if Build Fails
         if: failure()
-        run: echo "Build job failed! Please check logs."
+        run: echo "❌ Build job failed! Please check logs."
 
+  # --------------------- TESTING JOB ---------------------
   Testing:
     runs-on: ubuntu-latest
     needs: Build
@@ -48,14 +50,15 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: mvn test
 
-      - name: Checkstyle
+      - name: Checkstyle Code Quality
         if: github.ref == 'refs/heads/main'
         run: mvn checkstyle:checkstyle
 
-      - name: Skipping tests on non-main branches
+      - name: Skipping tests on other branches
         if: github.ref != 'refs/heads/main'
         run: echo "Skipping tests and code checks"
 
+  # --------------------- SECURITY SCAN ---------------------
   Security_Scan:
     runs-on: ubuntu-latest
     needs: Build
@@ -81,6 +84,7 @@ jobs:
           name: trivy-scan-results
           path: trivy-results.json
 
+  # --------------------- BUILD AND PUSH DOCKER IMAGE ---------------------
   BUILD_AND_PUBLISH:
     name: BUILD_AND_PUBLISH
     runs-on: ubuntu-latest
@@ -100,12 +104,17 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Build, tag, and push Docker image
+
+      - name: Debug workspace (optional)
+        run: |
+          echo "📁 Listing repo files"
+          ls -R
+
+      - name: 🐳 Build, Tag, and Push Docker Image to ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: vprofile-appimage
@@ -113,11 +122,11 @@ jobs:
         run: |
           echo "🛠️ Building Docker image..."
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          echo "📤 Pushing image to ECR..."
+          echo "📤 Pushing Docker image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "✅ Docker image pushed successfully!"
 
-      - name: Run Trivy image scan (ECR)
+      - name: Run Trivy image scan on final image
         uses: aquasecurity/trivy-action@0.20.0
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/vprofile-appimage:${{ github.run_number }}
