@@ -1,40 +1,47 @@
-# Workflow name
-name: Vprofile CICD Workflow
+# GitHub Actions workflow file
+name: workflow
 
-# Trigger the workflow on pushes to the main or develop branches
+# Trigger the workflow on push, pull request, and workflow dispatch events
 on:
   push:
-    branches: [ "main"]
+    branches:
+      - main
 
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
 
-# Trigger the workflow on a schedule
-# Every Monday to Friday at 2:10 pm
   workflow_dispatch:
-  schedule:
-    - cron: "10 14 * * 1-5"
 
-# Permissions
+
+# Schedule the workflow to run at 2:10 pm every Monday to Friday
+schedule:
+  - cron: "10 14 * * 1-5"   # Afternoon 2:10 pm, Monday to Friday
+
+
+# Set permissions for the workflow
 permissions:
   contents: read
 
-# Jobs
+
+# Define the jobs for the workflow
 jobs:
   Build:
+    # Run the job on an ubuntu-latest environment
     runs-on: ubuntu-latest
+    # Steps to run in the job
     steps:
-      # Checkout code
+      # Checkout the code
       - name: Code checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      # Build the application
+      # Build the application using Maven
       - name: Maven Build
         run: mvn install
 
-      # Upload the build artifact (WAR)
+      # Upload the build artifact (WAR) as an artifact
       - name: Upload Build Artifact (WAR)
         uses: actions/upload-artifact@v4
         with:
@@ -48,10 +55,13 @@ jobs:
 
 
   Testing:
+    # Run the job on an ubuntu-latest environment
     runs-on: ubuntu-latest
+    # Needs the Build job to complete successfully
     needs: Build
+    # Steps to run in the job
     steps:
-      # Checkout code
+      # Checkout the code
       - name: Code checkout
         uses: actions/checkout@v4
         with:
@@ -71,3 +81,35 @@ jobs:
       - name: Run tests on other branches
         if: github.ref != 'refs/heads/main'
         run: echo "Skipping unit tests and code analysis"
+
+
+  Security_Scan:
+    # Run the job on an ubuntu-latest environment
+    runs-on: ubuntu-latest
+    # Needs the Build job to complete successfully
+    needs: Build
+    # Steps to run in the job
+    steps:
+      # Checkout the code
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Run Trivy filesystem scan
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: json
+          exit-code: 0
+          vuln-type: os,library
+          output: trivy-results.json
+
+      # Upload Trivy scan results as an artifact
+      - name: Upload Trivy scan results as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan-results
+          path: trivy-results.json
