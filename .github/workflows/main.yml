@@ -98,7 +98,7 @@ jobs:
 
       # Run Trivy filesystem scan
       - name: Run Trivy filesystem scan
-        uses: aquasec/trivy-action@v1
+        uses: aquasecurity/trivy-action@master
         with:
           # Scan type
           scan-type: fs
