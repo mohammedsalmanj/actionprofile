@@ -1,29 +1,44 @@
+# Workflow name
 name: Build Job
-on: 
-  push:
-    branches: 
-      - main
 
+# Trigger the workflow on pushes to the main branch
+on:
+ # push:
+   # branches:
+     # - main
+
+  pull_request:
+    branches:
+      - main
 jobs:
+  # Build job: compile and package the project
   Build:
     runs-on: ubuntu-latest
     steps:
       - name: Code checkout
+        # Use the official checkout action to fetch repository code
         uses: actions/checkout@v4
 
       - name: Maven Build
+        # Run Maven install to compile, run plugins, and build artifacts
         run: mvn install
 
-
+  # Testing job: runs after Build completes successfully
   Testing:
     runs-on: ubuntu-latest
+    # Ensure tests run only after the Build job finishes
     needs: Build
     steps:
       - name: Code checkout
+        # Checkout with full history (fetch-depth: 0) if tests rely on tags or commit history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Run tests on main branch
+        # Execute Maven tests
         run: mvn test
 
       - name: Checkstyle
+        # Generate and check code style reports using Checkstyle
         run: mvn checkstyle:checkstyle
