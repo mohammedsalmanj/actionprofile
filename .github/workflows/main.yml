@@ -3,36 +3,36 @@ name: workflow
 
 # Trigger the workflow on push, pull request, and workflow dispatch events
 on:
+  # Trigger on push events
   push:
     branches:
       - main
 
+  # Trigger on pull request events
   pull_request:
     branches:
       - main
 
+  # Trigger on workflow dispatch events
   workflow_dispatch:
-
-
-
-
+env:
+  ECR_REPOSITORY: 'vprofile-appimage'
 
 # Set permissions for the workflow
 permissions:
   contents: read
 
-
 # Define the jobs for the workflow
 jobs:
   Build:
-    # Run the job on an ubuntu-latest environment
+    # Run on an ubuntu-latest environment
     runs-on: ubuntu-latest
-    # Steps to run in the job
     steps:
       # Checkout the code
       - name: Code checkout
         uses: actions/checkout@v5
         with:
+          # Fetch the entire repository
           fetch-depth: 0
 
       # Build the application using Maven
@@ -43,7 +43,9 @@ jobs:
       - name: Upload Build Artifact (WAR)
         uses: actions/upload-artifact@v4
         with:
+          # Name of the artifact
           name: vprofile-app
+          # Path to the artifact
           path: target/*.war
 
       # Notify if the build fails
@@ -53,16 +55,16 @@ jobs:
 
 
   Testing:
-    # Run the job on an ubuntu-latest environment
+    # Run on an ubuntu-latest environment
     runs-on: ubuntu-latest
     # Needs the Build job to complete successfully
     needs: Build
-    # Steps to run in the job
     steps:
       # Checkout the code
       - name: Code checkout
         uses: actions/checkout@v4
         with:
+          # Fetch the entire repository
           fetch-depth: 0
 
       # Run tests on the main branch
@@ -82,32 +84,94 @@ jobs:
 
 
   Security_Scan:
-    # Run the job on an ubuntu-latest environment
+    # Run on an ubuntu-latest environment
     runs-on: ubuntu-latest
     # Needs the Build job to complete successfully
     needs: Build
-    # Steps to run in the job
     steps:
       # Checkout the code
       - name: Code checkout
         uses: actions/checkout@v4
         with:
+          # Fetch the entire repository
           fetch-depth: 0
 
       # Run Trivy filesystem scan
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasec/trivy-action@v1
         with:
+          # Scan type
           scan-type: fs
+          # Scan reference
           scan-ref: .
+          # Format
           format: json
+          # Exit code
           exit-code: 0
+          # Vuln type
           vuln-type: os,library
+          # Output
           output: trivy-results.json
 
-      # Upload Trivy scan results as an artifact
+      # Upload Trivy scan results as artifact
       - name: Upload Trivy scan results as artifact
         uses: actions/upload-artifact@v4
         with:
+          # Name of the artifact
           name: trivy-scan-results
+          # Path to the artifact
           path: trivy-results.json
+
+
+  BUILD_AND_PUBLISH:
+    name: BUILD_AND_PUBLISH
+    # Run on an ubuntu-latest environment
+    runs-on: ubuntu-latest
+    # Set environment variables
+    environment: production
+    # Needs the Build, Testing, and Security_Scan jobs to complete successfully
+    needs: [Build, Testing, Security_Scan]
+    # Only run on the main branch
+    if: github.ref == 'refs/heads/main'
+    steps:
+      # Checkout the code
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          # Fetch the entire repository
+          fetch-depth: 0
+
+      # Configure aws credentials
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          # AWS access key ID
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          # AWS secret access key
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          # AWS region
+          aws-region: us-east-1
+      
+      # Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      # Build, tag, and push image to Amazon ECR
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          # ECR registry
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          # ECR repository
+          ECR_REPOSITORY: vprofile-appimage
+          # Image tag
+          IMAGE_TAG: latest
+        run: |
+          # Build the Docker image
+          docker build -f Dockerfiles/app/multistage/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # Tag the Docker image
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # Push the Docker image to Amazon ECR
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
