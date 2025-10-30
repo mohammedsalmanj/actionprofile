@@ -153,6 +153,7 @@ jobs:
       
       # 4️⃣ 🐳 Build, Tag, and Push Docker Image
       - name: Build, tag, and push image to Amazon ECR
+        working-directory: ${{ github.workspace }}
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: vprofile-appimage
