@@ -120,7 +120,7 @@ jobs:
           ECR_REPOSITORY: vprofile-appimage
           IMAGE_TAG: ${{ github.run_number }}
         run: |
-          echo "🛠️ Building Docker image..."
+          echo "Building Docker image..."
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           echo "📤 Pushing Docker image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
