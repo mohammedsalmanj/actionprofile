@@ -123,55 +123,49 @@ jobs:
           path: trivy-results.json
 
 
+
   BUILD_AND_PUBLISH:
     name: BUILD_AND_PUBLISH
-    # Run on an ubuntu-latest environment
     runs-on: ubuntu-latest
-    # Set environment variables
     environment: production
-    # Needs the Build, Testing, and Security_Scan jobs to complete successfully
     needs: [Build, Testing, Security_Scan]
-    # Only run on the main branch
     if: github.ref == 'refs/heads/main'
+
     steps:
-      # Checkout the code
+      # 1️⃣ Checkout repository
       - name: Code checkout
         uses: actions/checkout@v4
         with:
-          # Fetch the entire repository
           fetch-depth: 0
 
-      # Configure aws credentials
-      - name: Configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v1
+      # 2️⃣ Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          # AWS access key ID
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          # AWS secret access key
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          # AWS region
           aws-region: us-east-1
       
-      # Login to Amazon ECR
+      # 3️⃣ Login to Amazon ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
       
-      # Build, tag, and push image to Amazon ECR
+      # 4️⃣ 🐳 Build, Tag, and Push Docker Image
       - name: Build, tag, and push image to Amazon ECR
-        id: build-image
         env:
-          # ECR registry
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          # ECR repository
           ECR_REPOSITORY: vprofile-appimage
-          # Image tag
           IMAGE_TAG: latest
         run: |
-          # Build the Docker image
+          echo "🛠️ Building Docker image..."
           docker build -f Dockerfiles/app/multistage/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          # Tag the Docker image
+          
+          echo "🏷️ Tagging image..."
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          # Push the Docker image to Amazon ECR
+          
+          echo "📤 Pushing image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          
+          echo "✅ Docker image pushed successfully!"
 
